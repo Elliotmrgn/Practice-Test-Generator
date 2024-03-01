@@ -13,94 +13,7 @@ import PySimpleGUI as sg
 # TODO: Manual editing of questions
 # TODO: Image processing or manual adding
 
-
-def extract_chapter_map(doc, page_text_rect):
-    toc = doc.get_toc()
-    chapter_map = []
-    answer_chapter_match = 0
-    answer_section = False
-    for i, chapter in enumerate(toc):
-
-
-        if not answer_section and chapter[1].startswith("Chapter "):
-            regex_question_and_choices = r"^([\d|\s\d][\d' ']*)\.\s(.*(?:\r?\n(?![\s]*[A-Z]\.\s)[^\n]*|)*)(.*(?:\r?\n(?![\d|\s\d][\d' ']*\.\s)[^\n]*|)*)"
-
-            # regex_question_and_choices = r"^[\d|\s\d][\d\s]*\.\s(?:.*(?:\r?\n(?![\d|\s\d][\d\s]*\.\s)[^\n]*|)*)"
-            regex_choice_spillover = r"^[A-Z]*\.\s(?:.*(?:\r?\n(?!\d[\d\s]*\.\s)[^\n]*|)*)"
-            start_page_check = chapter[2] - 1
-            end_page_check = toc[i + 1][2] - 2
-
-            total_questions = 0
-            spillover_case = False
-            while True:
-                # Goes through pages to see if they have questions to find real start and end page
-                question_check = re.findall(regex_question_and_choices, doc[start_page_check].get_text(), re.MULTILINE)
-
-                if question_check and question_check[0][2]:
-                    # Once start page is found checks for end page
-                    last_page_text = re.findall(regex_question_and_choices, doc[end_page_check].get_text(),
-                                                re.MULTILINE)
-                    last_page_spillover_case = re.findall(regex_choice_spillover, doc[end_page_check].get_text(),
-                                                          re.MULTILINE)
-                    if last_page_text:
-
-                        total_questions = int(last_page_text[-1][0])
-                        if spillover_case:
-                            end_page_check += 1
-                        break
-                    elif last_page_spillover_case and not last_page_text:
-                        # Check if there is a page at the end that is just choices
-                        spillover_case = True
-                        end_page_check -= 1
-                    else:
-                        end_page_check -= 1
-                        if end_page_check <= start_page_check:  # incase it checks all chapter pages and nothing found
-                            break
-                else:
-                    start_page_check += 1
-                    if start_page_check >= end_page_check:  # incase it checks all chapter pages and nothing found
-                        break
-
-            chapter_map.append({
-                "number": int(chapter[1].split(" ")[1]),
-                "title": chapter[1],
-                "question_start_page": start_page_check,
-                "question_end_page": end_page_check,
-                "total_questions": total_questions
-
-            })
-
-        elif chapter[1].startswith("Appendix Answers") or chapter[1].startswith("Answers"):
-            answer_section = True
-
-        elif chapter[1].startswith("Answers to Chapter ") or (answer_section and chapter[1].startswith("Chapter")):
-            regex_answers = r"^(\d[\d' ']*)\.\s*((?:[A-Z],\s*)*[A-Z])\.\s*((?:.*(?:\r?\n(?!\d[\d\s]*\.\s)[^\n]*|)*))"
-            regex_answer_nums = r"^[\d|\s\d][\d' ']*(?=\.[\s]*[A-Z])"
-            chapter_map[answer_chapter_match]["answer_start_page"] = chapter[2] - 1
-            end_page_check = toc[i + 1][2] - 1
-            x = 0
-            while True:
-                doc_text = doc[end_page_check].get_text()
-
-                if doc_text and re.findall(regex_answer_nums, doc_text, re.MULTILINE):
-                    last_answer_page_data = re.findall(regex_answer_nums, doc_text, re.MULTILINE)
-                    last_answer_page_data = [number.replace(' ', '') for number in last_answer_page_data]
-                    # print(last_answer_page_data)
-                    if str(chapter_map[answer_chapter_match]["total_questions"]) in last_answer_page_data:
-                        chapter_map[answer_chapter_match]["answer_end_page"] = end_page_check
-                        break
-                    elif end_page_check == chapter_map[answer_chapter_match]["answer_start_page"]:
-                        sg.popup_error("ERROR FINDING ANSWER CHAPTERS")
-                        break
-                    else:
-                        end_page_check -= 1
-                else:
-                    end_page_check -= 1
-
-            answer_chapter_match += 1
-    print(json.dumps(chapter_map, indent=2))
-    print(doc[404].get_text())
-    return chapter_map
+from chapter_map_extractor import extract_chapter_map
 
 
 def extract_questions(doc, chapter, chapter_num, page_text_rect):
@@ -301,7 +214,7 @@ def pdf_processing(file_path):
     page_text_rect = (0, 60, doc[0].rect.width, doc[0].rect.height)
 
     # processes the mapping of chapters
-    chapter_map = extract_chapter_map(doc, page_text_rect)
+    chapter_map = extract_chapter_map(doc)
 
     # extract all questions and answers for each chapter
 
@@ -309,17 +222,7 @@ def pdf_processing(file_path):
         chapter["question_bank"] = extract_questions(doc, chapter, chapter_num + 1, page_text_rect)
         extract_answers(doc, chapter, page_text_rect)
 
-    else:
-        tot = 0
-        act =0
-        for xxx, ch in enumerate(chapter_map):
-            print(f'TOTAL QUESTIONS FOR CHAPTER {xxx+1}: {ch["total_questions"]} vs {len(ch["question_bank"])}')
-            tot += ch["total_questions"]
-            act += len(ch["question_bank"])
-        else:
-            print(f"TOTAL QUESTIONS = {tot}")
-            print(f"ACTUAL TOTAL: {act}")
-
+    chapter_map = chapter_map[:5]
 
     # save the data to a binary file for later use
     with open(f'./bins/{title}', 'wb') as file:
