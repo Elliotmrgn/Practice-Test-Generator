@@ -14,102 +14,7 @@ import PySimpleGUI as sg
 # TODO: Image processing or manual adding
 
 from chapter_map_extractor import extract_chapter_map
-
-
-def extract_questions(doc, chapter, chapter_num, page_text_rect):
-    def choice_cleanup(unclean_choices):
-        # Choices come out with lots of new lines, this cleans them up and matches them together
-        choice_text = re.split('(^[a-zA-Z]\. +)', unclean_choices, flags=re.MULTILINE)
-        choice_text = [choice.strip() for choice in choice_text if choice.strip()]
-        clean_choices = [[choice_text[i][0], choice_text[i + 1]] for i in range(0, len(choice_text), 2)]
-        return clean_choices
-
-    # -------------------------------------------------
-    regex_question_and_choices = r"^([\d|\s\d][\d' ']*)\.\s(.*(?:\r?\n(?![\s]*[a-zA-Z]\.\s)[^\n]*|)*)(.*(?:\r?\n(?![\d|\s\d][\d' ']*\.\s)[^\n]*|)*)"
-    regex_question_num = r"^([\d|\s\d][\d' ']*)\.\s"
-    regex_choice_spillover = r"^[A-Z]*\.\s(?:.*(?:\r?\n(?!\d[\d\s]*\.\s)[^\n]*|)*)"
-    question_bank = {}
-    page_number = chapter["question_start_page"]
-
-    multi_page = ""
-    match_skip = False
-    while page_number <= chapter["question_end_page"]:
-
-        doc_text = doc[page_number].get_textbox(page_text_rect)
-        clean_page_check = re.match(regex_question_num, doc_text)
-        if (clean_page_check and int(clean_page_check[1]) not in question_bank and page_number != chapter["question_start_page"]) or page_number == \
-                chapter["question_end_page"]:
-            if page_number == chapter["question_end_page"]:
-                multi_page += f"\n{doc_text}"
-
-            # Splits questions into 3 groups: [0] is question number, [1] is question text and [2] is choices
-            page_questions = re.findall(regex_question_and_choices, multi_page, re.MULTILINE)
-
-            for question in page_questions:
-
-                if 'match' in question[1].strip().lower():
-                    chapter["total_questions"] -= 1
-                    match_skip = True
-                    continue
-
-
-                question_num = int(question[0])
-
-                # Checks if a question was skipped due to format error
-                if question_num > 1:
-
-                    if question_num-1 not in question_bank and not match_skip:
-                        print(json.dumps(page_questions, indent=2))
-                        question_error_yes_no = sg.popup_yes_no(f"Error adding chapter {chapter_num} question {question_num-1}. Would you like to input it manually?")
-                        if question_error_yes_no == 'Yes':
-
-                            question_error_text = sg.popup_get_text("Enter the question text")
-
-
-                            if question_error_text:
-                                while True:
-                                    question_error_choices = sg.popup_get_text("Enter the choices (copy and paste)")
-                                    if question_error_choices:
-                                        question_error_choices = choice_cleanup(question_error_choices)
-                                        break
-                                question_bank[question_num-1] = {
-                                    "question_num": question_num-1,
-                                    "question": question_error_text.strip(),
-                                    "choices": question_error_choices,
-                                    "chapter_number": chapter_num
-                                }
-                            else:
-                                chapter["total_questions"] -= 1
-                        else:
-                            chapter["total_questions"] -= 1
-
-                if match_skip:
-                    match_skip = False
-
-                try:
-                    choices = choice_cleanup(question[2].strip())
-                except IndexError:
-                    print(json.dumps(question_bank, indent=2))
-                    print(multi_page)
-                    print("INDEX ERROR IN EXTRACT QUESTION")
-                    # print(json.dumps(question, indent=2))
-                    quit()
-
-
-                question_bank[question_num] = {
-                    "question_num": question_num,
-                    "question": question[1].strip(),
-                    "choices": choices,
-                    "chapter_number": chapter_num
-                }
-
-            multi_page = ""
-
-        multi_page += f"\n{doc_text}"
-        page_number += 1
-
-
-    return question_bank
+from question_extractor import extract_questions
 
 
 def extract_answers(doc, chapter, page_text_rect):
@@ -221,8 +126,6 @@ def pdf_processing(file_path):
     for chapter_num, chapter in enumerate(chapter_map):
         chapter["question_bank"] = extract_questions(doc, chapter, chapter_num + 1, page_text_rect)
         extract_answers(doc, chapter, page_text_rect)
-
-    chapter_map = chapter_map[:5]
 
     # save the data to a binary file for later use
     with open(f'./bins/{title}', 'wb') as file:
