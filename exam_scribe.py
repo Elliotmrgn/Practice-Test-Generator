@@ -15,92 +15,12 @@ import PySimpleGUI as sg
 
 from chapter_map_extractor import extract_chapter_map
 from question_extractor import extract_questions
+from answer_extractor import extract_answers
 
 
-def extract_answers(doc, chapter, page_text_rect):
-    regex_answers = r"^([\d|\s\d][\d' ']*)\.\s*((?:[A-Z][,\s]*[\sand\s]*[\sor\s]*)*[A-Z])\.\s*((?:.*(?:\r?\n(?![\d|\s\d][\d\s]*\.\s)[^\n]*)*))"
-    regex_answer_num = r"^([\d|\s\d][\d' ']*)\.\s[A-Z]"
-
-    multi_page = ""
-    page_number = chapter["answer_start_page"]
-    # print(f"STARTING CHAPTER TOTAL: {chapter['total_questions']}")
-    while page_number <= chapter["answer_end_page"]:
-
-        doc_text = doc[page_number].get_textbox(page_text_rect)
-
-        # Check if the first line on the page is an answer or if its the last page. Skips 1st page
-        # This is to extract the answers when there is no overflow
-
-        if (re.match(regex_answer_num, doc_text.strip()) and page_number != chapter["answer_start_page"]) or page_number == \
-                chapter["answer_end_page"]:
-            if page_number == chapter["answer_end_page"]:
-                # Checks if the next chapters answers start on the same page
-                if f"Chapter {chapter['number'] + 1}" in doc_text:
-                    lines = doc_text.split('\n')
-                    for i, line in enumerate(lines):
-                        if line.strip().startswith(f"Chapter {chapter['number'] + 1}"):
-                            # Keeps only text from current chapter
-                            doc_text = '\n'.join(lines[:i])
-                            break
-                multi_page += f"\n{doc_text}"
-
-            answer_data = re.findall(regex_answers, multi_page, re.MULTILINE)
-            for answer in answer_data:
-
-                question_num = int(answer[0].replace(' ', ''))
-                # If the question was not added to the question bank skip it
-                if question_num not in chapter["question_bank"]:
-                    continue
-
-                # check if the current question is not 1 and this chapters question 1 doesn't exist then skip
-                if question_num != 1 and "answer" not in chapter["question_bank"][1]:
-                    continue
-                # check if there is already an answer built for the current question then break
-                elif "answer" in chapter["question_bank"][question_num]:
-                    break
-                # otherwise build the answer
-                else:
-                    # Check if there is an error adding an answer due to formatting
-                    if question_num > 1:
-                        if question_num-1 in chapter["question_bank"]:
-                            # Catches if an answer was skipped and allows user input
-                            if 'answer' not in chapter["question_bank"][question_num - 1]:
-                                # print(f"*****************************\n{multi_page}\n*****************************\n")
-                                # print(json.dumps(chapter["question_bank"], indent=2))
-                                answer_error = sg.popup_yes_no(f"Error adding answer for chapter {chapter['question_bank'][question_num - 1]['chapter_number']} question {question_num - 1}. Would you like to add it manually?")
-                                if answer_error == 'Yes':
-                                    while True:
-                                        user_error_answer = sg.popup_get_text(f"Enter the correct answer to chapter {chapter['question_bank'][question_num - 1]['chapter_number']} question {question_num - 1}")
-                                        user_error_answer = user_error_answer.strip().replace(' ', '').replace(',', '')
-                                        if user_error_answer:
-                                            break
-                                    while True:
-                                        user_error_explanation = sg.popup_get_text(f"Enter the explanation to chapter {chapter['question_bank'][question_num - 1]['chapter_number']} question {question_num - 1}")
-                                        if user_error_explanation:
-                                            break
-                                    chapter["question_bank"][question_num-1]["answer"] = list(user_error_answer)
-                                    chapter["question_bank"][question_num-1]["explanation"] = user_error_explanation
-                                else:
-                                    chapter["total_questions"] -= 1
-                                    print(f"chapter {chapter['number']} HIT!!\nreported total: {chapter['total_questions']}")
-
-                                    del(chapter["question_bank"][question_num - 1])
-
-                    all_answers = answer[1]
-                    # Check for multiple answers
-                    if ',' in answer[1] or 'and' in answer[1]:
-                        all_answers = answer[1].replace(',', '').replace(' ', '').replace('and', '').replace('or', '')
-
-                    chapter["question_bank"][question_num]["answer"] = list(all_answers)
-                    chapter["question_bank"][question_num]["explanation"] = answer[2]
-
-            multi_page = ""
-
-        multi_page += f"\n{doc_text}"
-        page_number += 1
-
-# Function to open and process the selected PDF file
 def pdf_processing(file_path):
+    """Function to open and process the selected PDF file"""
+    # Open the pdf
     doc = fitz.open(file_path)
     title = doc.metadata["title"]
     if title:
