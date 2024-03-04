@@ -16,13 +16,18 @@ import PySimpleGUI as sg
 from chapter_map_extractor import extract_chapter_map
 from question_extractor import extract_questions
 from answer_extractor import extract_answers
+from GUI_windows import nav_window, quiz_window, score_window
 
 
 def pdf_processing(file_path):
     """Function to open and process the selected PDF file"""
     # Open the pdf
     doc = fitz.open(file_path)
+    # Store the title of the pdf
+
     title = doc.metadata["title"]
+
+    # If there is a title make it the file name
     if title:
         title = sanitize_file_name(doc.metadata["title"])
     else:
@@ -115,101 +120,6 @@ def load_previous_pdfs():
         filelist.append(file)
     return filelist
 
-
-def nav_window(filelist):
-    layout = [
-        [sg.Text("PDF Titles:")],
-        [sg.Column([
-            [sg.Listbox(filelist, size=(60, 8), expand_y=True, enable_events=True, key="-LIST-")],
-
-        ], pad=0),
-        sg.Column([
-            [sg.Button(key="-ADD-", button_text="Add")],
-            [sg.Button('Remove')],
-        ])],
-        [sg.pin(
-            sg.Column([
-                [sg.InputText(key="input_path"),
-                 sg.FileBrowse("Browse", key="browse_button", file_types=(("PDF files", "*.pdf"),)),
-                 sg.OK(key="add-OK")]
-            ], key="add-browser", pad=(0, 0), visible=False)
-        )],
-        # [sg.Text("Select a PDF:")],
-
-
-        [sg.pin(
-            sg.Column([
-                [sg.Text("Quiz Type:"), sg.Radio("Test", "quiz_type", key="test", enable_events=True),
-                 sg.Radio("Practice", "quiz_type", key="practice", enable_events=True)],
-                [sg.Text(f"Total questions? (max"), sg.Text(key="max-questions"),
-                 sg.InputText(key="quiz-len", size=5, enable_events=True)],
-                [sg.Button("Start")]
-            ], key="settings-col", pad=(0, 0), visible=False)
-        )],
-    ]
-    # starting window to add, remove, or select quiz
-    # Define the layout of the GUI
-    # Create the window
-    return sg.Window("PDF Reader", layout)
-
-
-def quiz_window(question_number, current_question, quiz_type, score):
-    # generates quiz window and dynamically adds choices
-    layout = [
-        [sg.Frame(f'Question {question_number}: ', [[sg.Text(f"{current_question['question']}")]])],
-        # [sg.Text(f'Question {question_number}: ')],
-        # [sg.Text(f"{current_question['question']}")],
-    ]
-
-    if len(current_question['answer']) == 1:
-        choice_buttons = [[sg.Radio(choice[1], question_number, key=choice[0])] for choice in
-                          current_question['choices']]
-    else:
-        choice_buttons = [[sg.Checkbox(choice[1], key=choice[0])] for choice in current_question['choices']]
-    layout.append(choice_buttons)
-    layout.append([sg.Button("Submit"), sg.Text(size=(10, 1))])
-    if quiz_type == 'practice' and question_number - 1 > 0:
-        layout.append(
-            [sg.Text(f"Score: {score} / {question_number - 1}  -  {score / (question_number - 1) * 100:.2f}")])
-
-    return sg.Window("Quiz", layout)
-
-
-def score_window(score, quiz_total_questions, wrong_questions):
-    show_detail_display = []
-    for i, chapter in enumerate(wrong_questions):
-        if chapter:
-            y_size = 0
-            no_scroll = True
-            show_detail_display.append([sg.Text(f"Chapter {i+1}:", key=f"Chapter {i+1}")])
-            wrong_question_list = []
-            for question in chapter:
-                wrong_question_list.append(f'Question {question["question_num"]}')
-                y_size += 1
-            if y_size > 10:
-                y_size = 10
-                no_scroll = False
-            show_detail_display.append([sg.Listbox(wrong_question_list, size=(14, y_size), expand_y=True,no_scrollbar=no_scroll, enable_events=True, key=f"Chapter {i+1} List")])
-            # for question in chapter:
-            #     wrong_questions_display.append()
-        # wrong_questions_display.append()
-        # print(show_detail_display)
-
-    layout = [
-        [sg.Text(f"Final Score: {score} / {quiz_total_questions}  -  {score / quiz_total_questions * 100:.2f}", key="final-score")],
-        [sg.Button("Show Details")],
-        [sg.pin(
-            sg.Column(show_detail_display,key="details-col", pad=(0, 0), visible=False)
-        ), sg.pin(
-            sg.Column([
-                [sg.Multiline(size=(30, 12), key='question-details', visible=False, pad=0)]
-            ])
-        )]
-    ]
-
-    return sg.Window("Score", layout)
-
-
 def main():
     # Main function to create and run the GUI
 
@@ -221,14 +131,12 @@ def main():
     # Nav screen loop
     while True:
         event, values = nav.read()
-        # print(event)
         # Window closed
         if event == sg.WINDOW_CLOSED:
             break
 
         # ADD BUTTON ------------------------------------------------
         if event == "-ADD-":
-            # add_file = sg.popup_get_file("Choose PDF to add", file_types=(("PDF files", "*.pdf"),))
             nav['add-browser'].update(visible=True)
 
         if event == 'add-OK':
@@ -300,8 +208,6 @@ def main():
                 if not quiz and pdf_questions:
                     nav.disable()
                     nav.hide()
-                    # for o,chapter in enumerate(pdf_questions):
-                    #     print(f'Chapter {o+1} Length: {len(chapter["question_bank"])}')
 
                     # Set quiz type
                     if values['test']:
@@ -319,35 +225,6 @@ def main():
                     score = 0
                     closed = False
                     wrong_questions = [[] for _ in range(len(pdf_questions))]
-
-                    # TESTING ALL QUESTIONS AND ANSWERS FOR ERROR
-                    # test = 1
-                    # for question in quiz_questions:
-                    #     try:
-                    #         if question["question_num"] == 41:
-                    #             sg.popup_ok(json.dumps(question, indent=2))
-                    #
-                    #             # quit()
-                    #         print(question["question_num"])
-                    #         print(question["question"])
-                    #         for choice in question["choices"]:
-                    #             count = 0
-                    #             for field in choice:
-                    #                 print(field)
-                    #                 count += 1
-                    #             if count != 2:
-                    #                 quit()
-                    #         print(question["chapter_number"])
-                    #         for answer in question["answer"]:
-                    #             print(answer)
-                    #         print(question["explanation"])
-                    #         print(f"TESTED QUESTION: {test}")
-                    #         test += 1
-                    #     except:
-                    #         print(json.dumps(question, indent=2))
-                    #         quit()
-                    # else:
-                    #     quit()
 
                     if quiz_questions:
                         while current_question + 1 <= quiz_total_questions:
@@ -382,16 +259,11 @@ def main():
                                         if values['practice']:
                                             explain = quiz_questions[current_question]['explanation'].replace(f'\n', ' ')
                                             sg.popup_ok(f"Wrong!\n\n{explain}")
-                                            print(selected_answer)
-                                            print('***')
-                                            print(json.dumps(quiz_questions[current_question], indent=2))
                                         elif values['test']:
                                             wrong_questions[quiz_questions[current_question]['chapter_number'] - 1].append(quiz_questions[current_question])
 
-
                                     current_question += 1
                                     quiz.close()
-
                                     break
                         else:
                             quiz = None
@@ -401,8 +273,6 @@ def main():
                                 score_screen = score_window(score, quiz_total_questions, wrong_questions)
                                 while True:
                                     score_event, score_values = score_screen.read()
-                                    print("EVENT", score_event)
-                                    print("VALUES", score_values)
                                     if score_event == sg.WINDOW_CLOSED:
                                         score_screen = None
                                         break
@@ -410,22 +280,16 @@ def main():
                                         if current_list and current_list != score_event:
                                             score_screen[current_list].update(set_to_index=[])
                                         current_list = score_event
-                                        print(score_screen[score_event].get_indexes())
-                                        print("******")
-                                        print(wrong_questions[int(score_event.split(' ')[1]) - 1][score_screen[score_event].get_indexes()[0]])
                                         selected_question = wrong_questions[int(score_event.split(' ')[1]) - 1][score_screen[score_event].get_indexes()[0]]
 
                                         score_screen['question-details'].update(f"QUESTION:\n{selected_question['question']}\n\n EXPLANATION:\n{selected_question['explanation']}")
                                         score_screen['question-details'].update(visible=True)
 
                                     if score_event == "Show Details":
-                                        print(json.dumps(wrong_questions))
                                         score_screen['details-col'].update(visible=True)
+
                     nav.enable()
                     nav.un_hide()
-
-                                # sg.popup_ok(f"Final Score: {score} / {quiz_total_questions}  -  {score / (quiz_total_questions) * 100:.2f}")
-
             else:
                 sg.popup_ok("Select quiz type and length before beginning")
 
