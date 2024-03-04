@@ -13,48 +13,37 @@ import PySimpleGUI as sg
 # TODO: Manual editing of questions
 # TODO: Image processing or manual adding
 
-from chapter_map_extractor import extract_chapter_map
-from question_extractor import extract_questions
-from answer_extractor import extract_answers
 from GUI_windows import nav_window, quiz_window, score_window
+from Book import Book
 
 
 def pdf_processing(file_path):
     """Function to open and process the selected PDF file"""
     # Open the pdf
     doc = fitz.open(file_path)
-    # Store the title of the pdf
 
-    title = doc.metadata["title"]
+    book = Book(doc)
+    book.chapters[0].build_question_bank(doc)
+    book.chapters[0].json_output()
+    quit()
 
     # If there is a title make it the file name
-    if title:
+    if book.title:
         title = sanitize_file_name(doc.metadata["title"])
     else:
         title = sanitize_file_name(os.path.splitext(os.path.basename(file_path))[0])
 
-    # Check if the file already exists before overwriting
-    if os.path.exists(f'./bins/{title}'):
-        # file_exist_ans = 'OK' or 'Cancel'
-        file_exists_ans = sg.popup_ok_cancel(f"'{title}' already exists. Do you want to overwrite it?")
-        if file_exists_ans == 'Cancel':
-            return
 
-    # create rect to remove header
-    page_text_rect = (0, 60, doc[0].rect.width, doc[0].rect.height)
-
-    # processes the mapping of chapters
-    chapter_map = extract_chapter_map(doc)
-
-    # extract all questions and answers for each chapter
-
-    for chapter_num, chapter in enumerate(chapter_map):
-        chapter["question_bank"] = extract_questions(doc, chapter, chapter_num + 1, page_text_rect)
-        extract_answers(doc, chapter, page_text_rect)
-
-    # save the data to a binary file for later use
-    with open(f'./bins/{title}', 'wb') as file:
-        pickle.dump(chapter_map, file)
+    # # Check if the file already exists before overwriting
+    # if os.path.exists(f'./bins/{title}'):
+    #     # file_exist_ans = 'OK' or 'Cancel'
+    #     file_exists_ans = sg.popup_ok_cancel(f"'{title}' already exists. Do you want to overwrite it?")
+    #     if file_exists_ans == 'Cancel':
+    #         return
+    #
+    # # save the data to a binary file for later use
+    # with open(f'./bins/{title}', 'wb') as file:
+    #     pickle.dump(chapter_map, file)
 
 
 def sanitize_file_name(file_name):

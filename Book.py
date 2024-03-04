@@ -61,7 +61,7 @@ class Book:
         end_page = self._validate_chapter_end_page(doc, start_page, end_page, False)
         total_questions = self._find_total_questions(doc, end_page)
 
-        return Chapter(chapter_num, title, start_page, end_page, total_questions)
+        return Chapter(doc, chapter_num, title, start_page, end_page, total_questions)
 
     def _extract_page_data(self, doc, page_number, is_answer_section):
         # Extracts either questions from page or answer numbers
