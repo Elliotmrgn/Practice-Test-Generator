@@ -7,6 +7,7 @@ class Book:
     def __init__(self, doc):
         self.title = doc.metadata["title"]
         self.chapters = self._build_chapters(doc)
+        self.total_questions = 0
 
 
     def _build_chapters(self, doc):
@@ -113,6 +114,10 @@ class Book:
         chapter.answer_start_page = self._validate_chapter_start_page(doc, start_page, end_page, True)
         chapter.answer_end_page = self._validate_chapter_end_page(doc, start_page, end_page, True, chapter.total_questions)
 
+
+    def get_total_questions(self):
+        for chapter in self.chapters:
+            self.total_questions += chapter.total_questions
     def print_chapters(self):
         for chapter in self.chapters:
             print(chapter)

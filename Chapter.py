@@ -91,6 +91,7 @@ class Chapter:
         return chapter_answers
 
     def _combine_questions_and_answers(self, chapter_questions, chapter_answers):
+        # Matches questions and answers, handles cases where either a question or answer was skipped
         matched_data = []
         question_index = 0
         answer_index = 0
